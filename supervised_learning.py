@@ -92,7 +92,7 @@ class supervised_learning:
         return self.data_preprocess(X, y)
 
     
-    def tuning_gyperparameter(self, X_train, X_test, y_train, y_test, estimator_name): 
+    def tuning_hyperparameter(self, X_train, X_test, y_train, y_test, estimator_name): 
         self.estimator_name = estimator_name
         estimator = estimators[estimator_name]
         parameter_space = hyperparameters[estimator_name]
@@ -103,7 +103,6 @@ class supervised_learning:
         # higher the AUC value for a classifier, the better its ability to distinguish
         clf = GridSearchCV(clf_func, parameter_space, n_jobs = n_jobs_val, cv = cv_splitter, scoring = score_method, return_train_score = True)
         clf.fit(X_train, y_train)
-        # print(estimator_name + ' Best parameters found:\n', clf.best_params_)
 
         params = clf.cv_results_['params']
         train_means = clf.cv_results_['mean_train_score']
@@ -142,21 +141,45 @@ class supervised_learning:
         train_scores_std = np.std(train_scores, axis=1)
         test_scores_mean = np.mean(test_scores, axis=1)
         test_scores_std = np.std(test_scores, axis=1)
+        fit_times_mean = np.mean(fit_times, axis=1)
+        fit_times_std = np.std(fit_times, axis=1)
     
         # Plot learning curve
-        _, ax = plt.subplots(1, 1)
-        ax.grid()
-        ax.fill_between(train_sizes, train_scores_mean - 2 * train_scores_std,
+        _, axes = plt.subplots(1, 3, figsize=(20, 5))
+        axes[0].grid()
+        axes[0].fill_between(train_sizes, train_scores_mean - 2 * train_scores_std,
             train_scores_mean + 2 * train_scores_std, alpha=0.1, color="r",)
-        ax.fill_between(train_sizes, test_scores_mean - 2 * test_scores_std,
+        axes[0].fill_between(train_sizes, test_scores_mean - 2 * test_scores_std,
             test_scores_mean + 2 * test_scores_std, alpha=0.1, color="g", )
-        ax.plot(train_sizes, train_scores_mean, "o-", color="r", label="Training score")
-        ax.plot(train_sizes, test_scores_mean, "o-", color="g", label="Cross-validation score")
-        ax.legend(loc="best")
-        ax.set_xlabel("Training examples")
-        ax.set_ylabel("Score")    
-        ax.set_title(self.estimator_name + " learning curve")
-        
+        axes[0].plot(train_sizes, train_scores_mean, "o-", color="r", label="Training score")
+        axes[0].plot(train_sizes, test_scores_mean, "o-", color="g", label="Cross-validation score")
+        axes[0].legend(loc="best")
+        axes[0].set_xlabel("Training examples")
+        axes[0].set_ylabel("Score")    
+        axes[0].set_title(self.estimator_name + " learning curve")
+    
+        # Plot n_samples vs fit_times
+        axes[1].grid()
+        axes[1].plot(train_sizes, fit_times_mean, "o-")
+        axes[1].fill_between(train_sizes, fit_times_mean - 2 * fit_times_std,
+            fit_times_mean + 2 * fit_times_std, alpha=0.1,)
+        axes[1].set_xlabel("Training examples")
+        axes[1].set_ylabel("fit_times")
+        axes[1].set_title(self.estimator_name + " model scalability")
+    
+        # Plot fit_time vs score
+        fit_time_argsort = fit_times_mean.argsort()
+        fit_time_sorted = fit_times_mean[fit_time_argsort]
+        test_scores_mean_sorted = test_scores_mean[fit_time_argsort]
+        test_scores_std_sorted = test_scores_std[fit_time_argsort]
+        axes[2].grid()
+        axes[2].plot(fit_time_sorted, test_scores_mean_sorted, "o-")
+        axes[2].fill_between(fit_time_sorted, test_scores_mean_sorted - 2 * test_scores_std_sorted,
+            test_scores_mean_sorted + 2 * test_scores_std_sorted, alpha=0.1,)
+        axes[2].set_xlabel("fit_times")
+        axes[2].set_ylabel("Score")
+        axes[2].set_title(self.estimator_name + " model performance")
+
         plt.show()
         return
     
@@ -228,7 +251,7 @@ if __name__ == "__main__":
         X_train, X_test, y_train, y_test = get_data()     
         out_of_sample_score = []
         for estimator_name in sl.estimator_names:
-            estimator, best_params = sl.tuning_gyperparameter(X_train, X_test, y_train, y_test, estimator_name)
+            estimator, best_params = sl.tuning_hyperparameter(X_train, X_test, y_train, y_test, estimator_name)
             sl.best_hyperparameters[estimator_name] = best_params
             sl.plot_learning_curve(X_train, y_train)
             if estimator_name in iterative_algorithms:
@@ -237,3 +260,9 @@ if __name__ == "__main__":
             out_of_sample_score.append(test_score)
         out_of_sample_scores.append(out_of_sample_score)
     
+    for i, data in enumerate(['kepler', 'health']):
+        plt.plot(estimator_names, out_of_sample_scores[i])
+        plt.title(data + ' Score on testing data')
+        plt.ylabel('Score')
+        plt.xticks(rotation = 15, ha = 'right')
+        plt.show()
